@@ -1,6 +1,8 @@
 import { RULES, evaluateCircle, createRoll, advanceRoll, summarizeRoll } from './engine.js';
 import { generatePoster, stageFor } from './poster.js';
 import { Moon3D, moonOBJ } from './moon3d.js';
+import { createGameAudio } from './audio.js';
+import { launchAt, smoothStep, LAUNCH_DURATION, REDUCED_LAUNCH_DURATION } from './launch.js';
 
 const $ = id => document.getElementById(id);
 const screens = ['home', 'game', 'result', 'poster'];
@@ -10,11 +12,13 @@ let current = 'home', phase = 'drawing', roll = null, result = null;
 let activePointer = null, points = [], origin = 0, hiddenAt = null;
 let raf = 0, lastRender = 0, posterJob = 0, posterBlob = null, posterURL = null;
 let modelPhase = .15, modelRotation = 0, modelPointer = null, lastModelX = 0, lastModelY = 0;
+let launchElapsed = 0, launchReduced = false, launchBeat = '';
 function read(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
 function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } }
 const storedSettings = read('moon-settings');
 const settings = { muted: storedSettings?.muted === true, reduced: storedSettings?.reduced ?? matchMedia('(prefers-reduced-motion: reduce)').matches };
 function show(id) {
+  if (id !== 'game') audio.stop();
   current = id;
   screens.forEach(screen => $(screen).hidden = screen !== id);
   document.body.classList.toggle('game-active', id === 'game');
@@ -37,24 +41,22 @@ function settingsUI() {
   $('motion').querySelector('span').textContent = settings.reduced ? '减' : '开';
   $('motion').setAttribute('aria-pressed', settings.reduced);
 }
-let audio;
-function tone(frequency = 523, duration = .18, gain = .04) {
-  if (settings.muted) return;
-  try {
-    audio ||= new (window.AudioContext || window.webkitAudioContext)();
-    audio.resume().catch(() => {});
-    const oscillator = audio.createOscillator(), volume = audio.createGain();
-    oscillator.type = 'sine'; oscillator.frequency.value = frequency;
-    volume.gain.setValueAtTime(0, audio.currentTime);
-    volume.gain.linearRampToValueAtTime(gain, audio.currentTime + .012);
-    volume.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + duration);
-    oscillator.connect(volume); volume.connect(audio.destination);
-    oscillator.start(); oscillator.stop(audio.currentTime + duration + .02);
-  } catch { /* Audio is optional; gameplay stays available. */ }
-}
+const audio = createGameAudio();
+audio.setMuted(settings.muted);
+const tone = (...args) => audio.tone(...args);
 settingsUI();
-$('sound').onclick = () => { settings.muted = !settings.muted; save('moon-settings', settings); settingsUI(); if (!settings.muted) tone(); };
-$('motion').onclick = () => { settings.reduced = !settings.reduced; save('moon-settings', settings); settingsUI(); };
+$('sound').onclick = () => {
+  settings.muted = !settings.muted; audio.setMuted(settings.muted);
+  save('moon-settings', settings); settingsUI(); if (!settings.muted) tone();
+};
+$('motion').onclick = () => {
+  settings.reduced = !settings.reduced;
+  if (settings.reduced && phase === 'launching') {
+    launchReduced = true;
+    origin = performance.now() - REDUCED_LAUNCH_DURATION * 1000;
+  }
+  save('moon-settings', settings); settingsUI();
+};
 
 function validSaved(value) {
   return value?.version === RULES.version && Number.isFinite(value.distance) && value.distance > 0 && value.distance <= RULES.maxDistance && Number.isFinite(value.score) && Array.isArray(value.contour) && value.contour.length >= 6 && value.contour.length <= 128 && value.contour.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && Math.abs(p.x) < 4 && Math.abs(p.y) < 4);
@@ -76,6 +78,18 @@ const canvas = $('drawing'), ctx = canvas.getContext('2d');
 const landscape = $('landscape'), land = landscape.getContext('2d');
 const rollingModel = new Moon3D($('rolling-moon'));
 const resultModel = new Moon3D($('personal-moon'));
+// Preload while the player draws; keep the original rabbit if the atlas is unavailable.
+const rabbitAtlas = new Image();
+rabbitAtlas.src = 'assets/rabbit-push-atlas.png';
+rabbitAtlas.decode().then(() => $('pushing-rabbit').dataset.ready = 'true').catch(() => {});
+// Generated poses have unequal extents: crop complete silhouettes, then align
+// the feet and reaching paw in a 512px frame instead of clipping to a grid.
+const rabbitFrames = [
+  [86, 71, 374, 413], [599, 104, 391, 380], [1087, 114, 389, 371],
+  [71, 587, 461, 357], [639, 562, 403, 382], [1120, 534, 355, 413],
+];
+const rabbitContext = $('rabbit-sprite').getContext('2d');
+let rabbitPaintedPose = -1;
 let width = 0, height = 0, short = 1;
 function resizeDrawing() {
   const rect = canvas.getBoundingClientRect();
@@ -148,30 +162,35 @@ canvas.addEventListener('pointerup', event => {
 });
 
 function start() {
+  audio.stop(); audio.resume();
   posterJob++; result = null; roll = null; phase = 'drawing'; hiddenAt = null;
+  launchElapsed = 0; launchBeat = '';
   points = []; activePointer = null;
   $('draw-panel').hidden = false; $('roll-stage').hidden = true;
   $('live-stats').hidden = true; $('roll-controls').hidden = true;
   $('phase-label').textContent = '壹 · 一笔成月';
   $('game-title').textContent = '画一颗，你的月亮。';
   $('game-eyebrow').textContent = '不必完美，独一无二就好';
-  $('game-description').textContent = '一笔画圆，抬手后自动滚动。越圆，滚得越远。';
+  $('game-description').textContent = '一笔画圆，玉兔帮你推向远方。越圆，滚得越远。';
   $('feedback').textContent = '顺时针、逆时针都可以。只需画一次。';
   $('guide').style.opacity = '1';
   show('game'); resizeDrawing(); tone(392, .25);
 }
 function beginRoll(evaluation) {
-  roll = createRoll(evaluation); phase = 'forming';
+  audio.stop(); audio.unlock();
+  roll = createRoll(evaluation); phase = 'launching';
+  launchElapsed = 0; launchBeat = ''; launchReduced = settings.reduced;
   $('draw-panel').hidden = true; $('roll-stage').hidden = false;
   $('live-stats').hidden = false; $('roll-controls').hidden = false;
-  $('forming').hidden = false; $('skip').disabled = true;
+  $('forming').hidden = false; $('skip').disabled = false;
   $('roundness').textContent = roll.score;
   $('distance').textContent = '0.0';
-  $('phase-label').textContent = '贰 · 月亮自己远行';
-  $('game-eyebrow').textContent = '你的一笔，正在变成立体月亮';
-  $('game-title').textContent = roll.score >= 85 ? '这一轮，滚向更远。' : '有点歪，也有自己的远方。';
-  $('game-description').textContent = '不用再画了。接下来，交给月亮。';
-  $('feedback').textContent = roll.score >= 95 ? '完美满月 · 稳稳滚向远方' : roll.score >= 85 ? '漂亮月亮 · 这一笔很有潜力' : roll.score >= 60 ? '歪歪月亮 · 看它摇摇晃晃地出发' : '有趣的月球 · 小小颠簸，也是旅程';
+  $('phase-label').textContent = '贰 · 玉兔送月';
+  $('game-eyebrow').textContent = '一笔心意，玉兔相送';
+  $('game-title').textContent = '玉兔助你，一推千里。';
+  $('game-description').textContent = '站稳、蓄力，把你亲手画的月亮推向远方。';
+  $('feedback').textContent = '不用再画了，看玉兔把月亮送出去。';
+  $('forming').textContent = launchAt(0, launchReduced).text;
   rollingModel.setContour(roll.contour);
   origin = performance.now();
   renderRoll(); tone(659, .3);
@@ -219,21 +238,63 @@ function renderRoll() {
     land.strokeStyle = '#b8af7a55'; land.lineWidth = 1;
     land.beginPath(); land.moveTo(x, y); land.lineTo(x + 6, y - 4); land.lineTo(x + 13, y - 1); land.stroke();
   }
-  const moonSize = Math.min(w < 500 ? 160 : 210, h * .68), centerX = w * .39;
+  const launching = phase === 'launching';
+  const launch = launchAt(launchElapsed, launchReduced);
+  const travel = launching ? 0 : roll.elapsed;
+  const moonSize = Math.min(w < 500 ? 170 : 230, h * .63, w * .46);
+  const settle = settings.reduced ? 0 : smoothStep(travel / 1.3);
+  const nudge = settings.reduced ? 0 : moonSize * .14 * launch.push;
+  const launchCenterX = w * .5 + moonSize * .38;
+  const centerX = launchCenterX + (w * .51 - launchCenterX) * settle + nudge;
   const roughness = (100 - roll.score) / 100;
-  const rotation = settings.reduced ? 0 : roll.distance / 65;
+  const rotation = settings.reduced ? 0 : roll.distance / 65 + launch.push * .38;
   const bounce = settings.reduced ? 0 : Math.abs(Math.sin(rotation * 3)) * roughness * 22;
   const groundY = terrain(centerX, camera, h);
   land.fillStyle = '#051d2c55'; land.beginPath(); land.ellipse(centerX, groundY + 2, moonSize * .35, 9, 0, 0, Math.PI * 2); land.fill();
   const body = $('rolling-body');
   body.style.width = moonSize + 'px'; body.style.height = moonSize + 'px';
-  body.style.left = centerX - moonSize / 2 + 'px'; body.style.top = groundY - moonSize * .84 - bounce + 'px';
-  rollingModel.render({ rotation, phase: .2, tilt: .13 + Math.sin(rotation * 2) * roughness * .14 });
+  body.style.left = centerX - moonSize / 2 + 'px'; body.style.top = groundY - moonSize * .9 - bounce + 'px';
+  rollingModel.render({ rotation, phase: .2, tilt: .13 + Math.sin(rotation * 2) * roughness * .14,
+    zoom: launching && !settings.reduced ? .85 + .15 * smoothStep(launchElapsed / .45) : 1 });
+  renderRabbit({ w, h, camera, moonSize, launchCenterX, groundY, launch, travel, launching });
   $('distance').textContent = roll.distance.toFixed(1);
   $('stage-name').textContent = stageFor(roll.distance);
 }
+function renderRabbit({ w, h, camera, moonSize, launchCenterX, groundY, launch, travel, launching }) {
+  const rabbit = $('pushing-rabbit'), size = moonSize * 1.08;
+  const pose = launching ? launch.pose : 5;
+  const contactX = launchCenterX - moonSize * .36;
+  const follow = settings.reduced ? 0 : launch.push * moonSize * .065;
+  const shift = settings.reduced ? 0 : Math.min(camera, w * .7);
+  const left = contactX - size * .93 + follow - shift;
+  const feetX = left + size * .55;
+  const feetY = launching ? groundY : terrain(feetX, camera, h);
+  rabbit.style.width = rabbit.style.height = size + 'px';
+  rabbit.style.left = left + 'px'; rabbit.style.top = feetY - size * .94 + 'px';
+  rabbit.style.opacity = launching ? 1 : 1 - smoothStep(travel / (settings.reduced ? .25 : 1.5));
+  rabbit.style.transform = `translateY(${settings.reduced ? 0 : launch.effort * .65}px)`;
+  rabbit.dataset.pose = String(pose);
+  if (rabbit.dataset.ready === 'true' && pose !== rabbitPaintedPose) {
+    const [x, y, width, height] = rabbitFrames[pose];
+    rabbitContext.clearRect(0, 0, 512, 512);
+    rabbitContext.drawImage(rabbitAtlas, x, y, width, height, 480 - width, 484 - height, width, height);
+    rabbitPaintedPose = pose;
+  }
+  $('roll-stage').dataset.phase = launching ? launch.name : 'rolling';
+  // Small puffs at the planted feet sell the effort without shaking the whole view.
+  if (!settings.reduced && launchElapsed > 1.4 && launchElapsed < 2.55 && launching) {
+    const t = (launchElapsed - 1.4) / 1.15;
+    land.fillStyle = `rgba(229,205,155,${.35 * (1 - t)})`;
+    for (let i = 0; i < 6; i++) {
+      land.beginPath();
+      land.ellipse(feetX - size * .21 - t * (18 + i * 8), feetY - t * (5 + i % 3 * 6), 2 + t * 5, 1 + t * 2, -.3, 0, Math.PI * 2);
+      land.fill();
+    }
+  }
+}
 function finish() {
   if (!roll || phase === 'finished') return;
+  audio.stop();
   advanceRoll(roll, roll.duration); phase = 'finished';
   result = summarizeRoll(roll);
   const previous = read(recordKey);
@@ -267,9 +328,27 @@ function presentResult() {
 function frame(now) {
   const dt = Math.min((now - lastRender) / 1000, .06); lastRender = now;
   if (current === 'game' && roll && hiddenAt === null) {
-    if (phase === 'forming' && now - origin >= 1000) {
-      phase = 'rolling'; origin = now; $('forming').hidden = true; $('skip').disabled = false;
-      $('game-eyebrow').textContent = '越圆越稳，越稳越远'; tone(784, .3);
+    if (phase === 'launching') {
+      launchElapsed = (now - origin) / 1000;
+      const launch = launchAt(launchElapsed, launchReduced);
+      if (launch.name !== launchBeat) {
+        launchBeat = launch.name;
+        $('forming').textContent = launch.text;
+        if (launch.cue && launchElapsed - launch.at < .2) audio.cue(launch.cue);
+      }
+      if (launch.done) {
+        phase = 'rolling';
+        origin += (launchReduced ? REDUCED_LAUNCH_DURATION : LAUNCH_DURATION) * 1000;
+        $('forming').hidden = true;
+        $('phase-label').textContent = '叁 · 月亮自己远行';
+        $('game-eyebrow').textContent = '越圆越稳，越稳越远';
+        $('game-title').textContent = roll.score >= 85 ? '这一轮，滚向更远。' : '有点歪，也有自己的远方。';
+        $('game-description').textContent = '玉兔送你一程，月亮载着心意继续远行。';
+        $('feedback').textContent = '月亮已经出发，静静看它滚过山海。';
+        if (launchReduced) tone(784, .2, .025);
+        else audio.cue('rolling');
+      }
+      renderRoll();
     }
     if (phase === 'rolling') {
       advanceRoll(roll, (now - origin) / 1000);
@@ -284,15 +363,24 @@ function frame(now) {
 }
 function visibility() {
   if (document.hidden) {
-    if (current === 'game' && (phase === 'rolling' || phase === 'forming')) hiddenAt ??= performance.now();
+    audio.pause();
+    if (current === 'game' && (phase === 'rolling' || phase === 'launching')) hiddenAt ??= performance.now();
     if (activePointer !== null) cancelDrawing({ pointerId: activePointer });
   } else if (hiddenAt !== null) {
     origin += performance.now() - hiddenAt; hiddenAt = null;
+    audio.resume();
+  } else {
+    audio.resume();
   }
 }
 document.addEventListener('visibilitychange', visibility);
-window.addEventListener('pagehide', () => { if (current === 'game' && roll) hiddenAt ??= performance.now(); });
-window.addEventListener('pageshow', () => { if (hiddenAt !== null && !document.hidden) { origin += performance.now() - hiddenAt; hiddenAt = null; } });
+window.addEventListener('pagehide', () => { audio.pause(); if (current === 'game' && roll) hiddenAt ??= performance.now(); });
+window.addEventListener('pageshow', () => {
+  if (!document.hidden) {
+    if (hiddenAt !== null) { origin += performance.now() - hiddenAt; hiddenAt = null; }
+    audio.resume();
+  }
+});
 window.addEventListener('resize', () => { if (current === 'game' && roll) renderRoll(); });
 
 const modelCanvas = $('personal-moon');
@@ -328,7 +416,7 @@ async function preparePoster() {
   }
 }
 $('start').onclick = start; $('again').onclick = start;
-$('skip').onclick = () => { if (phase === 'rolling') finish(); };
+$('skip').onclick = () => { if (phase === 'rolling' || phase === 'launching') finish(); };
 $('leave').onclick = () => { phase = 'drawing'; roll = null; activePointer = null; hiddenAt = null; show('home'); };
 $('home-button').onclick = () => show('home');
 $('last-moon').onclick = () => { const saved = read(collectionKey); if (validSaved(saved)) { result = saved; presentResult(); } };

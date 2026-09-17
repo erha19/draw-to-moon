@@ -33,7 +33,7 @@ assert.equal(await page.locator('#draw-panel').isVisible(), true, 'tiny circles 
 assert.match(await page.locator('#feedback').innerText(), /大一点/);
 await draw(.78);
 assert.equal(await page.locator('#roll-stage').isVisible(), true, 'one drawing automatically generates model');
-await page.clock.runFor(2200);
+await page.clock.runFor(3600);
 assert.ok(Number(await page.locator('#distance').innerText()) > 0, 'automatic travel with no further input');
 await page.screenshot({ path: '/tmp/roll-motion.png', fullPage: true });
 await page.clock.fastForward(16000);

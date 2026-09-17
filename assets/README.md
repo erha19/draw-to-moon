@@ -12,3 +12,11 @@ Palette: night #102e35, ivory #fff7dc, gold #d7b673, jade #66816b, blush #d9a999
 Authorship: original project-generated vector artwork, 2026. No third-party asset license attribution required. These sources are provided with the project for editing and use.
 
 Parallax layers are separately provided as `clouds.svg`, `mountains.svg`, `roof.svg`, `osmanthus.svg`, and `stars.svg`, each registered to the scene’s 800 × 1000 coordinates. `earth.svg` is a separate 800 × 400 transparent curved Earth illustration.
+
+## Moon-rabbit push animation
+
+- `rabbit-push-atlas.png`: 1536 × 1024 RGBA, created with the built-in imagegen tool on 2026-09-17, using the existing `rabbit-idle.svg` character as a visual reference. Six poses: ready, brace, strain, push, release, wave.
+- `rabbit-push-prompt.md`: original generation and correction prompts. The selected PNG is copied directly from the generated output, preserving its alpha channel.
+- The poses are arranged roughly in three columns and two rows, with unequal extents. `app.js` defines full source rectangles and aligns the painted feet and front paw in a 512 × 512 Canvas. Do not slice it into equal cells: the extended paws cross nominal grid boundaries.
+- The image contains only the rabbit, scarf and travel bundle. The player's actual moon is rendered separately by `moon3d.js`; no generic moon is baked into these frames.
+- The short effects are synthesized by `audio.js` with Web Audio, not embedded in the image or fetched from an external audio service.

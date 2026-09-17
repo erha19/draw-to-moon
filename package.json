@@ -1,11 +1,11 @@
 {
   "name": "draw-to-moon",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test engine.test.js moon3d.test.js",
-    "check": "node --check app.js && node --check engine.js && node --check moon3d.js && node --check poster.js && node --check server.js"
+    "test": "node --test engine.test.js moon3d.test.js launch.test.js audio.test.js",
+    "check": "node --check app.js && node --check engine.js && node --check moon3d.js && node --check poster.js && node --check launch.js && node --check audio.js && node --check server.js"
   }
 }
