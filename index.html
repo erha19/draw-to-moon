@@ -1,0 +1,29 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#112e35"><meta name="description" content="只画一笔，让你亲手画的月亮滚过山海。越圆，滚得越远。"><title>画到月亮 · 中秋滚月挑战</title><link rel="icon" href="assets/moon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css"></head><body>
+<div class="site-shell"><header class="masthead"><a class="brand" href="./" aria-label="画到月亮首页"><span class="brand-moon">☾</span> 月下游记 <small>MOONLIT TALES</small></a><div class="tools"><button id="motion" class="icon-button" aria-label="减少动态效果" aria-pressed="false">动效 <span>开</span></button><button id="sound" class="icon-button" aria-label="静音" aria-pressed="false">声音 <span>开</span></button></div></header>
+<main id="home" class="screen home-screen">
+  <div class="hero-art" aria-hidden="true"><img class="scene-art" src="assets/scene.svg" alt=""><img class="home-rabbit" src="assets/rabbit.svg" alt=""><div class="hero-shade"></div></div>
+  <div class="hero-heading"><div class="eyebrow">丙午年 · 中秋月下游记</div><h1>画到<span>月亮</span><i>。</i></h1><p>一笔画月，千里寄相思。</p></div>
+  <div class="hero-aside" aria-hidden="true">把团圆，画成一个圆。</div>
+  <div class="hero-bottom"><div id="challenge" class="challenge" hidden></div><h2>只画一笔，滚过山海。</h2><button id="start" class="primary">画一颗月亮 <span>↗</span></button><p class="start-note">画完即出发 · 越圆越远 · 把月亮送给想念的人</p><div id="record" class="record"><span>我的最远月迹</span><strong>今夜，等你落下第一笔</strong></div><button id="last-moon" class="text-button collection-button" hidden>查看我收藏的月亮 ↗</button></div>
+</main>
+<main id="game" class="screen game-screen" hidden>
+  <div class="game-top"><button id="leave" class="text-button">‹ 回到月下</button><span id="phase-label">壹 · 一笔成月</span><span class="edition">一笔滚月</span></div>
+  <div class="game-heading"><div class="eyebrow" id="game-eyebrow">不必完美，独一无二就好</div><h1 id="game-title">画一颗，你的月亮。</h1><p id="game-description">一笔画圆，抬手后自动滚动。越圆，滚得越远。</p></div>
+  <div id="draw-panel" class="draw-panel"><canvas id="drawing" aria-label="在这里一笔画一个圆，抬手自动生成月亮并滚动"></canvas><div id="guide" class="guide"><div></div><span>从任意位置，画一圈</span></div><div class="draw-corners"><i></i><i></i><i></i><i></i></div><div class="drawing-mark">你的笔迹，就是月亮的形状</div></div>
+  <div id="roll-stage" class="roll-stage" hidden><canvas id="landscape" aria-label="月亮沿山间月光小径自动滚动"></canvas><div id="rolling-body"><canvas id="rolling-moon" width="320" height="320" aria-label="依据手绘轮廓生成的立体月亮"></canvas></div><img id="watching-rabbit" src="assets/rabbit-idle.svg" alt="玉兔陪你赏月"><div class="roll-location"><span id="stage-name">桂花小径</span><small>月光所至，皆是归途</small></div><div id="forming" class="forming" hidden>正在把你的一笔，变成一颗月亮…</div></div>
+  <div id="live-stats" class="live-stats" hidden><div><small>这颗月亮的圆度</small><strong id="roundness">—</strong><span> / 100</span></div><div><small>月亮已滚过</small><strong id="distance">0</strong><span> 米</span></div></div>
+  <p id="feedback" class="drawing-feedback" role="status">顺时针、逆时针都可以。只需画一次。</p>
+  <div id="roll-controls" class="roll-controls" hidden><span>✧ 放下手指，看月亮自己远行</span><button id="skip" class="text-button">直接看结果 →</button></div>
+</main>
+<main id="result" class="screen result-screen" hidden>
+  <div class="result-heading"><div class="eyebrow">月下游记 · 你的专属月亮</div><h1>这一轮月亮，只属于你。</h1><p id="result-kicker" class="result-kicker">你的一笔，在月光里走了很远。</p></div>
+  <div class="result-visual"><div class="result-moon"><canvas id="personal-moon" width="600" height="600" aria-label="可拖动旋转的个人三维月亮模型"></canvas><div class="model-orbit"></div></div><p class="model-hint">↔ 拖动，看看这颗独一无二的月亮</p></div>
+  <div class="result-summary"><div class="result-distance"><strong id="result-distance">0</strong><span>米</span></div><div id="grade" class="grade"></div><p id="best-note" class="gold-note"></p><div class="stats"><div><small>手绘圆度</small><strong id="result-score"></strong></div><div><small>抵达之地</small><strong id="result-stage" class="stat-place"></strong></div></div></div>
+  <div class="result-bottom"><button id="poster-open" class="primary">送你一颗中秋的月亮 <span>↗</span></button><div class="result-actions"><button id="again" class="text-button">再画一颗</button><span>·</span><button id="challenge-share" class="text-button">挑战朋友</button><span>·</span><button id="download-model" class="text-button">下载 3D 模型</button><span>·</span><button id="home-button" class="text-button">首页</button></div><p id="ranking-note" class="ranking-note">本机成绩 · 全国排名尚未开放</p><p id="result-note" class="subtle" hidden></p></div>
+</main>
+<main id="poster" class="screen poster-screen" hidden>
+  <div class="poster-heading"><button id="poster-back" class="text-button">‹ 返回月亮</button><div class="eyebrow">把亲手画的月光，送给心上的你</div></div>
+  <div class="poster-preview"><div id="poster-loading" class="poster-loading">正在把月光，装进一封祝福里…</div><img id="poster-image" alt="送你一颗中秋的月亮。愿你所念皆圆满，所行皆坦途。" hidden><button id="retry-poster" class="primary" hidden>重新生成祝福海报</button></div>
+  <div id="poster-controls" class="poster-controls" hidden><p class="subtle">海报已生成 · 可长按图片查看保存选项</p><button id="share-image" class="primary">把月亮与祝福送给你 ↗</button><div class="result-actions"><a id="download-image" download="送你一颗中秋的月亮.png">下载祝福图</a><span>·</span><a id="original-image" target="_blank" rel="noopener">打开原图</a></div></div>
+</main>
+<footer class="footer"><span>今夕共此月 · 天涯也团圆</span><span>2026 MID-AUTUMN FESTIVAL <i>✧</i></span></footer></div><div id="toast" role="status" hidden></div><script type="module" src="app.js"></script></body></html>

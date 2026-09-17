@@ -1,0 +1,7 @@
+.DS_Store
+.omx/
+node_modules/
+_site/
+.env
+.env.*
+*.log
