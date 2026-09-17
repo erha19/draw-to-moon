@@ -18,7 +18,7 @@ async function open(width = 390, height = 844, reduced = false) {
     };
   });
   await page.goto(base);
-  await page.clock.pauseAt(new Date('2026-09-17T00:00:01Z'));
+  await page.clock.pauseAt(new Date('2026-09-17T01:00:00Z'));
   await page.locator('#pushing-rabbit[data-ready="true"]').waitFor({ state: 'attached' });
   return { page, errors };
 }
