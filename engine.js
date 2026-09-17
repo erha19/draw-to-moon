@@ -61,7 +61,8 @@ export function evaluateCircle(input) {
   const gap = distance(points[0], points.at(-1)) / radius;
   if (gap > 1.2) return reject('再把月亮画完整一点');
   const score = Math.round(80 * clamp(1 - 2.7 * radialError, 0, 1) + 20 * clamp(1 - gap / 1.2, 0, 1));
-  return { valid: true, score, reason: '', contour: points.map(p => ({ x: (p.x - center.x) / radius, y: (p.y - center.y) / radius })) };
+  return { valid: true, score, reason: '', center: { ...center }, radius,
+    contour: points.map(p => ({ x: (p.x - center.x) / radius, y: (p.y - center.y) / radius })) };
 }
 
 /** A deterministic arcade roll: shape determines range, never drawing speed. */

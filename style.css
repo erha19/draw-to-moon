@@ -25,3 +25,20 @@ button,a{-webkit-tap-highlight-color:transparent}button{font:inherit;cursor:poin
 .roll-stage .forming{padding:0 12px;line-height:1.6;color:#eddbad;pointer-events:none}
 .roll-stage[data-phase="push"] .forming{font-size:18px;letter-spacing:5px;color:#ffe5a9}
 @media(max-height:480px){.roll-stage .forming{top:9px;bottom:auto;width:100%;text-align:center;font-size:9px;letter-spacing:1px}.roll-stage[data-phase="push"] .forming{font-size:12px}}
+
+.moon-formation{position:fixed;inset:0;width:100vw;height:100dvh;z-index:12;pointer-events:none}
+.combo-hud{position:absolute;left:30px;top:29px;width:128px;color:#e9d5a3;pointer-events:none;text-shadow:0 1px 6px #102b35}
+.combo-hud>span{display:block;font-size:9px;letter-spacing:3px;color:#afbdab;margin-bottom:5px}
+.combo-hud>strong{font:11px Georgia;letter-spacing:1px;display:flex;align-items:baseline;gap:8px}
+.combo-hud b{font-size:25px;font-weight:400;color:#ffe5a9}
+.combo-meter{height:2px;background:#d8c18a25;margin:7px 0 5px;overflow:hidden}
+.combo-meter i{display:block;height:100%;background:#e7cc8a;transform-origin:left;transform:scaleX(0)}
+.combo-hud>small{font-size:8px;letter-spacing:1px;color:#adbaa5}
+.combo-burst{position:absolute;left:50%;bottom:12px;width:210px;text-align:center;color:#f7dfaa;pointer-events:none;text-shadow:0 2px 14px #0e2d35;transform:translate(-50%,0)}
+.combo-burst small,.combo-burst span{display:block;font-size:10px;letter-spacing:2px}
+.combo-burst strong{display:block;font:32px Georgia;letter-spacing:1px;margin:5px 0;color:#ffe8b5}
+.combo-burst span{color:#d6d7b6}
+.result-combo{font:11px var(--serif);letter-spacing:1px;color:#bda875;margin-top:5px}
+@media(max-width:370px){.tools{gap:10px}.icon-button{font-size:9px}.icon-button span{font-size:9px;margin-left:3px}.combo-hud{width:104px}.combo-burst{bottom:8px;width:175px}.combo-burst strong{font-size:24px;margin:3px 0}.combo-burst small,.combo-burst span{font-size:9px}.result-combo{font-size:9px}}
+@media(max-height:700px){.result-combo{margin-top:3px;font-size:9px}}
+@media(max-height:480px){.combo-hud{top:15px;left:48px;width:110px}.combo-hud>span{display:none}.combo-hud b{font-size:21px}.combo-burst{bottom:6px;width:180px}.combo-burst strong{font-size:21px;margin:2px 0}.combo-burst small{font-size:9px}.combo-burst span{display:none}.result-combo{display:inline-block;margin:0 0 0 8px;font-size:9px}}

@@ -39,9 +39,9 @@ export function drawPersonalMoon(ctx, contour, x, y, r) {
 
 export const POSTER_COPY = Object.freeze({
   title: '送你一颗中秋的月亮',
-  subtitle: '把亲手画的月光，送给心上的你',
+  subtitle: '把亲手画的月亮，送给心上的你',
   blessing: ['愿你所念皆圆满，', '所行皆坦途。'],
-  wish: '愿此刻的月光，照亮每一个想念。',
+  wish: '愿这颗月亮，陪你走过每个想念的夜晚。',
   footer: '画到月亮 · 一笔成月，寄予团圆',
 });
 

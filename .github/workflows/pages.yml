@@ -34,7 +34,7 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir _site
-          cp index.html style.css app.js engine.js moon3d.js poster.js launch.js audio.js _site/
+          cp index.html style.css app.js engine.js moon3d.js poster.js launch.js audio.js effects.js _site/
           cp -R assets _site/assets
           touch _site/.nojekyll
       - name: Upload site

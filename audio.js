@@ -1,7 +1,8 @@
-// Short effects follow the game's animation clock. There are no looping tracks
-// or delayed JS callbacks to restart a sound after a screen change.
+// Effects follow the game clock; music uses a short AudioContext lookahead.
+// No timers or external recordings can restart audio after leaving the game.
 export function createGameAudio() {
   let context = null, noiseBuffer = null, muted = false, paused = false;
+  let musicEnabled = true, musicPlaying = false, nextNote = 0, noteIndex = 0, scene = 'home';
   const voices = new Set();
 
   function resumeContext() {
@@ -18,6 +19,7 @@ export function createGameAudio() {
         context = new AudioContext();
         noiseBuffer = null;
       }
+      musicPlaying = true;
       resumeContext();
       return true;
     } catch { return false; }
@@ -36,6 +38,12 @@ export function createGameAudio() {
 
   function stop() {
     for (const voice of voices) dispose(voice, true);
+    musicPlaying = false; nextNote = 0; noteIndex = 0;
+  }
+
+  function silence(musicOnly = false) {
+    for (const voice of voices) if (!musicOnly || voice.music) dispose(voice, true);
+    nextNote = 0;
   }
 
   function noise() {
@@ -48,11 +56,11 @@ export function createGameAudio() {
   }
 
   function voice({ frequency = 160, end = frequency, type = 'sine', duration = .2,
-    gain = .025, delay = 0, attack = .012, filter, cutoff = 500, q = .7, breath = false }) {
+    gain = .025, delay = 0, attack = .012, filter, cutoff = 500, q = .7, breath = false, music = false }) {
     let playing;
     try {
       const source = breath ? context.createBufferSource() : context.createOscillator();
-      playing = { source, nodes: [source] };
+      playing = { source, nodes: [source], music };
       voices.add(playing);
       const start = context.currentTime + delay, finish = start + duration;
       if (breath) source.buffer = noise();
@@ -93,8 +101,14 @@ export function createGameAudio() {
   }
 
   function cue(name) {
-    if (!['brace', 'push', 'release', 'rolling'].includes(name) || !unlock()) return;
-    if (name === 'brace') {
+    if (!['form', 'draw', 'brace', 'push', 'release', 'rolling'].includes(name) || !unlock()) return;
+    if (name === 'form') {
+      voice({ frequency: 262, end: 523, duration: 1.1, gain: .024, attack: .25 });
+      voice({ frequency: 784, end: 1046, duration: .75, delay: .3, gain: .012, attack: .12 });
+      voice({ breath: true, filter: 'bandpass', cutoff: 1200, duration: .8, gain: .014, attack: .25 });
+    } else if (name === 'draw') {
+      voice({ type: 'triangle', frequency: 523, end: 392, duration: .13, gain: .013 });
+    } else if (name === 'brace') {
       // Two small foot shuffles and a soft, descending effort sound.
       voice({ breath: true, filter: 'bandpass', cutoff: 350, duration: .15, gain: .025 });
       voice({ breath: true, filter: 'bandpass', cutoff: 250, duration: .13, gain: .02, delay: .16 });
@@ -116,13 +130,52 @@ export function createGameAudio() {
     }
   }
 
+  function combo(count) {
+    if (!Number.isInteger(count) || count < 1 || count > 20 || !unlock()) return;
+    const scale = [523.25, 587.33, 659.25, 783.99, 880];
+    const base = scale[(count - 1) % scale.length] * (count > 10 ? 1.25 : 1);
+    voice({ frequency: base, duration: .32, gain: .034 });
+    voice({ type: 'triangle', frequency: base * 1.5, duration: .36, gain: .016, delay: .055 });
+    if (count % 5 === 0) voice({ frequency: base * 2, duration: .6, gain: .019, delay: .12 });
+  }
+
+  // An original, repeating pentatonic phrase with rests, plucked overtones and
+  // a soft root/fifth. Scene changes alter the pace without restarting notes.
+  const melody = [0, null, 2, 4, 3, 2, 1, null, 0, 2, 3, null, 4, 2, 1, null,
+    2, 3, 4, null, 2, 1, 0, null, 1, 2, 4, 3, 2, null, 0, null];
+  const notes = [392, 440, 523.25, 587.33, 659.25];
+  function tick() {
+    if (!context || context.state !== 'running' || muted || paused || !musicEnabled || !musicPlaying) return;
+    const now = context.currentTime;
+    // Missed frames never queue an entire old phrase on resume.
+    if (!nextNote || nextNote < now - .15) nextNote = now + .035;
+    if (nextNote > now + .12) return;
+    const delay = Math.max(0, nextNote - now), index = noteIndex % melody.length;
+    const note = melody[index], quiet = scene === 'result' || scene === 'poster' ? .65 : 1;
+    if (note !== null) {
+      const frequency = notes[note];
+      voice({ frequency, duration: .9, gain: .014 * quiet, attack: .015, delay, music: true });
+      voice({ frequency: frequency * 2, duration: .35, gain: .0035 * quiet, delay, music: true });
+    }
+    if (index % 8 === 0) {
+      voice({ frequency: index < 16 ? 196 : 220, duration: 2.4, gain: .009 * quiet, attack: .25, delay, music: true });
+      voice({ frequency: index < 16 ? 293.66 : 330, duration: 2.6, gain: .005 * quiet, attack: .45, delay, music: true });
+    }
+    noteIndex++;
+    nextNote += scene === 'rolling' ? .4 : .48;
+  }
+
   return {
     unlock,
     tone,
     cue,
+    combo,
+    tick,
     stop,
-    setMuted(value) { muted = Boolean(value); if (muted) stop(); },
-    pause() { paused = true; stop(); },
+    setScene(value) { scene = value; if (context) musicPlaying = true; },
+    setMusicEnabled(value) { musicEnabled = Boolean(value); if (!musicEnabled) silence(true); },
+    setMuted(value) { muted = Boolean(value); if (muted) silence(); },
+    pause() { paused = true; silence(); },
     resume() { paused = false; resumeContext(); },
   };
 }

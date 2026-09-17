@@ -150,3 +150,53 @@ test('legacy AudioContext works and repeated unlock calls reuse one context', t 
   assert.equal(contexts.length, 1);
   assert.equal(sources(contexts[0]).length, 1);
 });
+
+test('music waits for interaction and schedules a bounded lookahead without duplicate notes', t => {
+  const contexts = installAudio(t), audio = createGameAudio();
+  audio.setScene('drawing'); audio.tick();
+  assert.equal(contexts.length, 0);
+  audio.unlock(); audio.tick();
+  const context = contexts[0], first = sources(context).length;
+  assert.equal(first, 4, 'a pluck, overtone and two soft backing notes');
+  for (let i = 0; i < 100; i++) audio.tick();
+  assert.equal(sources(context).length, first);
+  context.currentTime += 120; audio.tick();
+  assert.ok(sources(context).length <= first + 4, 'no backlog of notes after a long frame stall');
+  audio.stop(); context.currentTime += 1; audio.tick();
+  assert.ok(context.nodes.every(node => node.disconnected), 'stop cancels all music');
+});
+
+test('music-only switch preserves sound effects and mute/pause cancel both layers', t => {
+  const contexts = installAudio(t), audio = createGameAudio();
+  audio.cue('push');
+  const context = contexts[0], effects = sources(context).slice();
+  audio.tick();
+  const music = sources(context).slice(effects.length);
+  audio.setMusicEnabled(false);
+  assert.ok(effects.every(source => !source.disconnected));
+  assert.ok(music.every(source => source.disconnected));
+  const count = sources(context).length;
+  context.currentTime += 2; audio.tick();
+  assert.equal(sources(context).length, count);
+  audio.setMusicEnabled(true); audio.tick();
+  audio.pause();
+  assert.ok(context.nodes.every(node => node.disconnected));
+  context.currentTime += 5; audio.tick();
+  const stopped = sources(context).length;
+  audio.resume(); audio.tick();
+  assert.ok(sources(context).length <= stopped + 4);
+  audio.setMuted(true); audio.combo(5); audio.tick();
+  assert.ok(context.nodes.every(node => node.disconnected));
+});
+
+test('formation and combo cues validate input and reward only requested milestones', t => {
+  const contexts = installAudio(t), audio = createGameAudio();
+  for (const value of [0, -1, 1.5, NaN, 21]) audio.combo(value);
+  assert.equal(contexts.length, 0);
+  audio.cue('form');
+  const context = contexts[0];
+  assert.equal(sources(context).length, 3);
+  audio.combo(1); assert.equal(sources(context).length, 5);
+  audio.combo(5); assert.equal(sources(context).length, 8);
+  audio.stop(); assert.ok(context.nodes.every(node => node.disconnected));
+});

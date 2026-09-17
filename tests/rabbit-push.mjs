@@ -11,6 +11,8 @@ async function game({ width = 1440, height = 900, reduced = false, noAudio = fal
   page.on('pageerror', error => errors.push(error.message));
   await page.clock.install({ time: new Date('2026-09-17T00:00:00Z') });
   await page.addInitScript(({ noAudio }) => {
+    // Isolate effect lifecycle tests from the independently tested music scheduler.
+    if (!localStorage.getItem('moon-settings')) localStorage.setItem('moon-settings', JSON.stringify({music:false}));
     // Observe actual Web Audio scheduling without replacing the synthesis engine.
     window.audioEvents = [];
     window.audioContexts = 0;
@@ -59,6 +61,8 @@ async function draw(page, ry = 1) {
     for (let i = 1; i <= 100; i++) fire('pointermove', i);
     fire('pointerup', 100);
   }, ry);
+  const reduced = await page.locator('body').evaluate(e => e.classList.contains('reduced'));
+  await page.clock.runFor(reduced ? 260 : 1360);
 }
 
 const stage = page => page.locator('#roll-stage').getAttribute('data-phase');
@@ -227,6 +231,7 @@ try {
   await verify('reduced motion gives a short static push before travel', { reduced: true }, async page => {
     await page.click('#start'); await draw(page);
     assert.equal(await stage(page), 'gentle');
+    const initialSources = started(await audioEvents(page)).length;
     const before = await snapshot(page);
     await page.clock.runFor(500);
     assert.deepEqual(await snapshot(page), before, 'reduced-motion rabbit remains still');
@@ -234,7 +239,7 @@ try {
     await page.screenshot({ path: '/tmp/rabbit-push-reduced.png', fullPage: true });
     await page.clock.runFor(250);
     assert.equal(await stage(page), 'rolling'); assert.ok(await distance(page) > 0);
-    assert.ok(started(await audioEvents(page)).length <= 3, 'no full effort cue sequence in reduced mode');
+    assert.equal(started(await audioEvents(page)).length, initialSources + 1, 'one gentle departure tone instead of the full effort sequence');
   });
 
   await verify('enabling reduced motion during a push does not jump the rolling distance', {}, async page => {
@@ -244,7 +249,7 @@ try {
     assert.equal(await stage(page), 'rolling', 'motion toggle promptly finishes the transition');
     const traveled = await distance(page);
     assert.ok(traveled >= 0 && traveled < 10, 'travel starts from zero when motion is reduced');
-    assert.equal((await snapshot(page)).transform, 'translateY(0px)');
+    assert.equal((await snapshot(page)).transform, 'translateY(0px) scale(1, 1)');
     await page.clock.runFor(250);
     assert.equal(await stage(page), 'rolling');
     assert.ok(await distance(page) > traveled && await distance(page) < 100, 'normal rolling time follows the toggle');

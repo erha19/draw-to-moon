@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import { RULES, evaluateCircle, createRoll, advanceRoll, summarizeRoll } from './engine.js';
 const circle = (count = 120, rx = .25, ry = rx, turns = 1, reverse = false) => Array.from({ length: count + 1 }, (_, i) => { const a = i / count * Math.PI * 2 * turns * (reverse ? -1 : 1); return { x: .5 + rx * Math.cos(a), y: .5 + ry * Math.sin(a) }; });
 const good = score => ({ ...evaluateCircle(circle()), score });
+test('formation metadata maps the modeled contour back to the original drawn outline', () => {
+  const input = circle(120, .32, .21), evaluation = evaluateCircle(input);
+  assert.equal(evaluation.valid, true);
+  const first = evaluation.contour[0];
+  assert.ok(Math.abs(evaluation.center.x + first.x * evaluation.radius - input[0].x) < 1e-12);
+  assert.ok(Math.abs(evaluation.center.y + first.y * evaluation.radius - input[0].y) < 1e-12);
+  const moved = evaluateCircle(input.map(p => ({ x: p.x * 2 + 3, y: p.y * 2 - 1 })));
+  assert.equal(moved.score, evaluation.score);
+  assert.ok(Math.abs(moved.radius - evaluation.radius * 2) < 1e-10);
+});
 test('circles score above ellipses, independent of drawing direction and event density', () => {
   for (const reverse of [false, true]) for (const n of [24, 60, 240]) assert.ok(evaluateCircle(circle(n, .25, .25, 1, reverse)).score >= 98);
   assert.ok(evaluateCircle(circle(120, .32, .16)).score < 80);
